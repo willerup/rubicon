@@ -99,6 +99,11 @@ svg.map.drag{cursor:grabbing}
 .pp text{font:700 11px var(--display);fill:var(--person);paint-order:stroke;stroke:var(--land);stroke-width:2.8px;stroke-linejoin:round;cursor:pointer;letter-spacing:.03em}
 .pp text:hover{fill:var(--fg)}
 .pp text.sel{fill:var(--fg);text-decoration:underline}
+.pp text.dead{fill:var(--accent)}
+.pp .dia.dead{fill:var(--accent)}
+.ptip .dead{color:var(--accent)}
+.where.dead{border-left-color:var(--accent)}
+.deadtxt{color:var(--accent)}
 .pp text.multi{font-style:normal;text-decoration:underline dotted;text-underline-offset:2px}
 .pp .dia{fill:var(--person);stroke:var(--mark-fill);stroke-width:1}
 .pp .dia.multi{stroke-width:2}
@@ -666,7 +671,7 @@ const PEOPLE = [
  [-62,-62,"Brundisium","Lands and disbands his army."],
  [-61,-50,"Roma","Triumvir; governs Spain through legates while staying near Rome."],
  [-49,-49,"Dyrrachium","Abandons Italy for Greece (March)."],
- [-48,-48,"Pharsalus","Defeated (Aug); murdered landing at Pelusium (Sept)."]]],
+ [-48,-48,"Pelusium","Routed at Pharsalus (9 Aug); flees to Egypt and is stabbed to death as he lands at Pelusium (28 Sept)."]]],
 ["Crassus",-115,-53,"Richest man in Rome; financier, triumvir, and conqueror of Spartacus.",[
  [-86,-85,"Corduba","Hides from the Marians in a seaside cave in Spain."],
  [-84,-84,"Utica",""],
@@ -699,7 +704,8 @@ const PEOPLE = [
  [-49,-49,"Formiae","Agonises at his villa; joins Pompey in June."],
  [-48,-48,"Dyrrachium","In Pompey's camp."],
  [-47,-47,"Brundisium","Waits nearly a year for Caesar's pardon."],
- [-46,-43,"Roma","Philippics against Antony; murdered near Formiae, 7 Dec 43."]]],
+ [-46,-44,"Roma","Pardoned by Caesar; writes philosophy; first Philippics against Antony."],
+ [-43,-43,"Formiae","Leads the Senate against Antony; proscribed and killed near his villa at Formiae, 7 Dec."]]],
 ["Julius Caesar",-100,-44,"Patrician populist; conqueror of Gaul; crossed the Rubicon; dictator for life.",[
  [-100,-82,"Roma","Born in the Subura."],
  [-81,-81,"Nicomedia","At the court of King Nicomedes of Bithynia."],
@@ -1016,6 +1022,8 @@ const SVGNS='http://www.w3.org/2000/svg';
 const SHORT={"Scipio Aemilianus":"Scipio","Tiberius Gracchus":"Ti. Gracchus","Gaius Gracchus":"C. Gracchus","Gaius Marius":"Marius","Mithridates VI":"Mithridates","Julius Caesar":"Caesar","Cato the Younger":"Cato","Mark Antony":"Antony","Sextus Pompey":"Sex. Pompey"};
 const pLabel=(p,y)=>p[0].startsWith('Octavian')?(y<=-28?'Octavian':'Augustus'):(SHORT[p[0]]||p[0]);
 const whereIs=(p,y)=>p[4].find(s=>y>=s[0]&&y<=s[1]);
+const diesNow=(i,y)=>PEOPLE[i][2]===y;
+const nameOf=(i,y)=>(diesNow(i,y)?'† ':'')+pLabel(PEOPLE[i],y);
 const EXPAND_K=6;           // zoom at which every group shows all names
 let selPerson=-1, lastExpandAll=false;
 const expanded=new Set();   // places the reader has tapped open this year
@@ -1051,7 +1059,7 @@ function renderPeople(animate){
     const outer=document.createElementNS(SVGNS,'g'); outer.setAttribute('transform',`translate(${x0},${y0})`);
     const g=document.createElementNS(SVGNS,'g'); g.setAttribute('class','pp travelling'); g.setAttribute('transform',`scale(${(1/Math.sqrt(k)).toFixed(3)})`);
     const d=document.createElementNS(SVGNS,'path'); d.setAttribute('class','dia'); d.setAttribute('d','M0,-15L4.5,-10.5L0,-6L-4.5,-10.5Z'); g.appendChild(d);
-    const tx_=document.createElementNS(SVGNS,'text'); tx_.setAttribute('x',0); tx_.setAttribute('y',-19); tx_.setAttribute('text-anchor','middle'); tx_.textContent=pLabel(PEOPLE[i],year); if(i===selPerson) tx_.classList.add('sel'); g.appendChild(tx_);
+    const tx_=document.createElementNS(SVGNS,'text'); tx_.setAttribute('x',0); tx_.setAttribute('y',-19); tx_.setAttribute('text-anchor','middle'); tx_.textContent=nameOf(i,year); if(diesNow(i,year)){ tx_.classList.add('dead'); d.classList.add('dead'); } if(i===selPerson) tx_.classList.add('sel'); g.appendChild(tx_);
     outer.appendChild(g); G.appendChild(outer);
     return {outer,line,x0,y0,x1,y1};
   });
@@ -1080,24 +1088,28 @@ function drawGroups(G, pos, skip, fresh){
     const outer=document.createElementNS(SVGNS,'g'); outer.setAttribute('transform',`translate(${px(P[2]).toFixed(1)},${py(P[3]).toFixed(1)})`);
     if(ids.some(i=>fresh.has(i))) outer.setAttribute('class','fresh');
     const g=document.createElementNS(SVGNS,'g'); g.setAttribute('class','pp'); g.setAttribute('transform',`scale(${(1/Math.sqrt(k)).toFixed(3)})`);
-    const collapsed = ids.length>2 && !lastExpandAll && !expanded.has(pl);
-    const d=document.createElementNS(SVGNS,'path'); d.setAttribute('class','dia'+(collapsed?' multi':'')); d.setAttribute('d','M0,-15L4.5,-10.5L0,-6L-4.5,-10.5Z'); g.appendChild(d);
-    const names=ids.map(id=>pLabel(PEOPLE[id],year));
+    const dying=ids.filter(i=>diesNow(i,year)), living=ids.filter(i=>!diesNow(i,year));
+    const collapsed = living.length>2 && !lastExpandAll && !expanded.has(pl);
+    const d=document.createElementNS(SVGNS,'path'); d.setAttribute('class','dia'+(collapsed?' multi':'')+(dying.length&&!living.length?' dead':'')); d.setAttribute('d','M0,-15L4.5,-10.5L0,-6L-4.5,-10.5Z'); g.appendChild(d);
+    const nameEl=(id,j)=>{ const t=document.createElementNS(SVGNS,'text'); t.setAttribute('x',0); t.setAttribute('y',-19-j*12.5); t.setAttribute('text-anchor','middle'); t.textContent=nameOf(id,year);
+      if(diesNow(id,year)) t.classList.add('dead'); if(id===selPerson) t.classList.add('sel');
+      t.addEventListener('pointerdown',e=>e.stopPropagation());
+      t.addEventListener('click',e=>{ e.stopPropagation(); showPerson(id,false); }); g.appendChild(t); };
+    let row=0;
     if(collapsed){
       const t=document.createElementNS(SVGNS,'text'); t.setAttribute('x',0); t.setAttribute('y',-19); t.setAttribute('text-anchor','middle'); t.classList.add('multi');
-      const si=ids.indexOf(selPerson);
-      t.textContent = si>=0 ? `${names[si]} +${ids.length-1}` : `${ids.length} people`;
+      const si=living.indexOf(selPerson);
+      t.textContent = si>=0 ? `${pLabel(PEOPLE[selPerson],year)} +${living.length-1}` : `${living.length} people`;
       if(si>=0) t.classList.add('sel');
-      const html=`<strong>In ${pl}, ${fmtY(year)}</strong>${names.join('<br>')}<em>Click to list them on the map</em>`;
+      const html=`<strong>In ${pl}, ${fmtY(year)}</strong>`+ids.map(i=>diesNow(i,year)?`<span class="dead">${nameOf(i,year)} (dies)</span>`:pLabel(PEOPLE[i],year)).join('<br>')+`<em>Click to list them on the map</em>`;
       t.addEventListener('pointerenter',e=>showTip(e,html)); t.addEventListener('pointermove',e=>showTip(e,html)); t.addEventListener('pointerleave',hideTip);
       t.addEventListener('pointerdown',e=>e.stopPropagation());
       t.addEventListener('click',e=>{ e.stopPropagation(); expanded.add(pl); renderPeople(); updateLabels(); });
-      g.appendChild(t);
+      g.appendChild(t); row=1;
     } else {
-      ids.forEach((id,j)=>{ const t=document.createElementNS(SVGNS,'text'); t.setAttribute('x',0); t.setAttribute('y',-19-j*12.5); t.setAttribute('text-anchor','middle'); t.textContent=names[j]; if(id===selPerson) t.classList.add('sel');
-        t.addEventListener('pointerdown',e=>e.stopPropagation());
-        t.addEventListener('click',e=>{ e.stopPropagation(); showPerson(id,false); }); g.appendChild(t); });
+      living.forEach(id=>nameEl(id,row++));
     }
+    dying.forEach(id=>nameEl(id,row++));   // deaths always shown by name, in red, on top
     outer.appendChild(g); G.appendChild(outer);
   });
 }
@@ -1114,10 +1126,10 @@ function showPerson(i,fly){
   const alive=year>=p[1]&&year<=p[2];
   let where;
   if(!alive) where = year<p[1]?`Not yet born in ${fmtY(year)}.`:`Dead by ${fmtY(year)}.`;
-  else if(s) where = `<b>${fmtY(year)}: ${s[2]}</b>${s[3]?' · '+s[3]:''}`;
+  else if(s) where = `<b>${fmtY(year)}: ${s[2]}</b>${s[3]?' · '+s[3]:''}`+(year===p[2]?` <b class="deadtxt">† Dies this year.</b>`:'');
   else where = `Whereabouts in ${fmtY(year)} not tracked here.`;
   const box=$('placebox'); box.hidden=false;
-  box.innerHTML=`<button class="close" id="pclose">Clear</button><p class="lbl">Person</p><h3>${p[0]}</h3><div class="mod">${fmtRange(p[1],p[2])}</div><p class="note">${p[3]}</p><p class="where">${where}</p>`+
+  box.innerHTML=`<button class="close" id="pclose">Clear</button><p class="lbl">Person</p><h3>${p[0]}</h3><div class="mod">${fmtRange(p[1],p[2])}</div><p class="note">${p[3]}</p><p class="where${year===p[2]?' dead':''}">${where}</p>`+
     `<p class="lbl" style="margin-top:10px">Where they were</p><div class="itin">`+p[4].filter(s=>s[1]>=-150).map(s=>`<button class="ev${(year>=s[0]&&year<=s[1])?' now':''}" data-y="${Math.max(s[0],-150)}" data-p="${s[2]}"><b>${fmtRange(s[0],s[1])}</b><span>${s[2]}${s[3]?' · '+s[3]:''}</span></button>`).join('')+`</div>`;
   box.querySelectorAll('.itin .ev').forEach(b=>b.onclick=()=>{ const P=byName[b.dataset.p]; setYear(+b.dataset.y); if(P) flyTo(P[2],P[3],P[4]==='r'?3:5); });
   $('pclose').onclick=()=>{ clearSelection(); renderPeople(); updateLabels(); };
